@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ARRAY MACHINE - a generative poster toy</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#111; --paper:#e8e6e3; --blue:#1f2bff; --mag:#ff2bd0; --panel:#0d0d0f;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html,body{height:100%; background:var(--panel); color:#eee;
+    font-family:"Courier New", ui-monospace, monospace; overflow:hidden;}
+  #app{display:flex; height:100vh;}
+  /* ---------- control rail ---------- */
+  #rail{width:270px; min-width:270px; background:var(--panel); border-right:1px solid #2a2a2e;
+    padding:14px 14px 10px; overflow-y:auto; font-size:11px; line-height:1.5;}
+  #rail h1{font-size:15px; letter-spacing:3px; color:var(--mag); margin-bottom:2px;}
+  #rail .sub{color:#777; font-size:10px; margin-bottom:14px;}
+  .grp{margin-bottom:14px; border-top:1px solid #2a2a2e; padding-top:10px;}
+  .grp label.t{display:block; color:#999; letter-spacing:2px; font-size:9px; margin-bottom:6px;}
+  .btnrow{display:flex; flex-wrap:wrap; gap:5px;}
+  button, .uplabel{background:#1a1a1e; color:#ddd; border:1px solid #3a3a40; font:inherit;
+    font-size:10px; padding:5px 8px; cursor:pointer; letter-spacing:1px;}
+  button:hover, .uplabel:hover{border-color:var(--blue); color:#fff;}
+  button.on{background:var(--blue); border-color:var(--blue); color:#fff;}
+  button.mag.on{background:var(--mag); border-color:var(--mag); color:#111;}
+  input[type=text]{width:100%; background:#1a1a1e; border:1px solid #3a3a40; color:#fff;
+    font:inherit; font-size:12px; padding:6px 8px; letter-spacing:2px;}
+  input[type=range]{width:100%; accent-color:var(--mag);}
+  .row{display:flex; justify-content:space-between; color:#bbb; margin:2px 0;}
+  .row b{color:#fff; font-weight:normal;}
+  #file{display:none;}
+  .hint{color:#555; font-size:9px; margin-top:10px; line-height:1.7;}
+  kbd{border:1px solid #3a3a40; padding:0 4px; font-size:9px;}
+  /* ---------- stage ---------- */
+  #stage{flex:1; position:relative; background:var(--paper);}
+  canvas#cv{position:absolute; inset:0; width:100%; height:100%; cursor:crosshair;}
+  #toast{position:absolute; left:50%; bottom:18px; transform:translateX(-50%);
+    background:#111; color:var(--mag); padding:6px 14px; font-size:11px; letter-spacing:2px;
+    opacity:0; transition:opacity .3s; pointer-events:none;}
+  @media (max-width:760px){ #rail{display:none;} }
+
+  /* ---- design polish ---- */
+  html,body{font-family:'Space Mono',monospace;}
+  #rail h1{font-weight:700;letter-spacing:.18em;}
+  .grp label.t{letter-spacing:.22em;}
+  button, .uplabel{border-radius:2px;letter-spacing:.06em;}
+
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="rail">
+    <h1>ARRAY<br>MACHINE</h1>
+    <div class="sub">a generative poster toy<br>after @a2can3's array machine</div>
+
+    <div class="grp">
+      <label class="t">SOURCE</label>
+      <div class="btnrow" id="srcBtns">
+        <button data-src="text" class="on">TEXT</button>
+        <button data-src="emoji">GLYPH</button>
+        <button data-src="image">IMAGE</button>
+      </div>
+      <div style="height:8px"></div>
+      <input type="text" id="srcText" value="ARRAY" maxlength="12" spellcheck="false">
+      <div style="height:6px"></div>
+      <div class="btnrow" id="emojiBtns" style="display:none">
+        <button data-e="🐈" class="on">🐈</button><button data-e="👾">👾</button>
+        <button data-e="🍄">🍄</button><button data-e="💀">💀</button>
+        <button data-e="🕊">🕊</button><button data-e="🚀">🚀</button>
+        <button data-e="🌵">🌵</button><button data-e="👁">👁</button>
+      </div>
+      <div class="btnrow" id="imgRow" style="display:none">
+        <label class="uplabel" for="file">UPLOAD IMAGE</label>
+        <input id="file" type="file" accept="image/*">
+      </div>
+    </div>
+
+    <div class="grp">
+      <label class="t">SHAPES</label>
+      <div class="btnrow" id="shapeBtns">
+        <button data-s="ring" class="on">ring</button>
+        <button data-s="dot" class="on">dot</button>
+        <button data-s="sqring" class="on">sq-ring</button>
+        <button data-s="chip" class="on">chip</button>
+        <button data-s="plus">plus</button>
+        <button data-s="star">star</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <label class="t">PALETTE</label>
+      <div class="btnrow" id="palBtns">
+        <button data-p="jorge" class="on">JORGE</button>
+        <button data-p="amber">AMBER</button>
+        <button data-p="toxic">TOXIC</button>
+        <button data-p="mono">MONO</button>
+        <button data-p="candy">CANDY</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <label class="t">FIELDS</label>
+      <div class="row"><span>density</span><b id="vDen">11</b></div>
+      <input type="range" id="den" min="6" max="26" value="11">
+      <div class="row"><span>max size</span><b id="vMax">2.0</b></div>
+      <input type="range" id="maxs" min="10" max="40" value="20">
+      <div class="row"><span>scatter</span><b id="vJit">28</b></div>
+      <input type="range" id="jit" min="0" max="100" value="28">
+      <div class="row"><span>motion</span><b id="vSpd">40</b></div>
+      <input type="range" id="spd" min="0" max="100" value="40">
+    </div>
+
+    <div class="grp">
+      <label class="t">FRAME</label>
+      <div class="btnrow">
+        <button id="posterBtn" class="mag on">POSTER FRAME ON</button>
+        <button id="animBtn" class="on">ANIMATE</button>
+      </div>
+    </div>
+
+    <div class="grp">
+      <div class="btnrow">
+        <button id="reseed">⟳ RESEED</button>
+        <button id="save" class="mag">⬇ SAVE PNG</button>
+      </div>
+      <div class="hint">
+        click canvas to reseed · move pointer to push the field<br>
+        <kbd>R</kbd> reseed · <kbd>S</kbd> save · <kbd>P</kbd> frame · <kbd>1-5</kbd> palettes
+      </div>
+    </div>
+  </div>
+
+  <div id="stage">
+    <canvas id="cv"></canvas>
+    <div id="toast">SAVED</div>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ARRAY MACHINE - generative poster toy
+   shapes arrayed over a sampled source (text / emoji / image),
+   after the "Array Machine" pieces by Jorge (@a2can3). */
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const stage = document.getElementById('stage');
+
+const PALETTES = {
+  jorge:{bg:'#e8e6e3', inks:['#1f2bff','#111111','#1f2bff','#111111'], accent:'#ff2bd0', strip:'#111'},
+  amber:{bg:'#14100a', inks:['#ffb02e','#ff7b1c','#ffe9c9','#8a4b12'], accent:'#ff7b1c', strip:'#ffb02e'},
+  toxic:{bg:'#0c0f0a', inks:['#a6ff1e','#1effc8','#e8ffe8','#2c5d10'], accent:'#a6ff1c', strip:'#a6ff1e'},
+  mono: {bg:'#f2f2f0', inks:['#111111','#444444','#111111','#888888'], accent:'#111111', strip:'#111'},
+  candy:{bg:'#ffeef8', inks:['#ff2bd0','#1f2bff','#111111','#ff2bd0'], accent:'#1f2bff', strip:'#111'},
+};
+
+const S = {
+  src:'text', text:'ARRAY', emoji:'🐈', img:null,
+  shapes:new Set(['ring','dot','sqring','chip']),
+  pal:'jorge', den:11, maxs:20, jit:28, spd:40,
+  poster:true, anim:true, seed:(Math.random()*1e9)|0, t:0
+};
+
+let W=0,H=0,DPR=1, cells=[], mouse={x:-9e4,y:-9e4};
+const srcCv = document.createElement('canvas'), srcCtx = srcCv.getContext('2d',{willReadFrequently:true});
+
+/* deterministic rng */
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);
+  t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;}}
+function hash(x,y,s){let h=(x*374761393+y*668265263+s*962287)>>>0;h=(h^(h>>13))*1274126177>>>0;
+  return ((h^(h>>16))>>>0)/4294967296;}
+
+function resize(){
+  DPR=Math.min(2,window.devicePixelRatio||1);
+  W=stage.clientWidth; H=stage.clientHeight;
+  cv.width=W*DPR; cv.height=H*DPR;
+  ctx.setTransform(DPR,0,0,DPR,0,0);
+  rebuild();
+}
+
+/* ---- source sampling ---- */
+function paintSource(w,h){
+  srcCv.width=w; srcCv.height=h;
+  const c=srcCtx; c.clearRect(0,0,w,h);
+  c.fillStyle='#000'; c.fillRect(0,0,w,h);
+  c.fillStyle='#fff'; c.textAlign='center'; c.textBaseline='middle';
+  if(S.src==='text'){
+    let size=h*0.72;
+    c.font=`900 ${size}px "Arial Black",Arial,sans-serif`;
+    const tw=c.measureText(S.text||'A').width;
+    if(tw>w*0.92){ size*= (w*0.92)/tw; c.font=`900 ${size}px "Arial Black",Arial,sans-serif`; }
+    c.fillText(S.text||'A', w/2, h/2+size*0.04);
+  }else if(S.src==='emoji'){
+    const size=h*0.82;
+    c.font=`${size}px "Apple Color Emoji","Noto Color Emoji",serif`;
+    c.fillText(S.emoji, w/2, h/2+h*0.02);
+  }else if(S.src==='image' && S.img){
+    const im=S.img, r=Math.max(w/im.width, h/im.height);
+    const iw=im.width*r, ih=im.height*r;
+    c.drawImage(im,(w-iw)/2,(h-ih)/2,iw,ih);
+  }
+}
+
+function rebuild(){
+  /* poster geometry: art area inside frame */
+  const pad = S.poster? Math.min(W,H)*0.055 : 0;
+  const stripH = S.poster? 26 : 0;
+  const ax=pad, ay=pad+stripH, aw=W-pad*2, ah=H-pad*2-stripH*2-(S.poster?H*0.16:0);
+  if(aw<40||ah<40) {cells=[]; return;}
+  const cell=S.den, cols=Math.floor(aw/cell), rows=Math.floor(ah/cell);
+  paintSource(cols,rows);
+  const data=srcCtx.getImageData(0,0,cols,rows).data;
+  const rng=mulberry(S.seed);
+  cells=[];
+  for(let y=0;y<rows;y++) for(let x=0;x<cols;x++){
+    const i=(y*cols+x)*4;
+    /* luminance of white-on-black source = coverage */
+    const cov=(data[i]*0.299+data[i+1]*0.587+data[i+2]*0.114)/255;
+    if(cov<0.08) continue;
+    const r1=rng(), r2=rng(), r3=rng(), r4=rng();
+    const types=[...S.shapes];
+    const type=types.length? types[(r1*types.length)|0] : 'dot';
+    cells.push({
+      px: ax + x*cell + cell/2 + (r2-0.5)*cell*S.jit/50,
+      py: ay + y*cell + cell/2 + (r3-0.5)*cell*S.jit/50,
+      cov, type,
+      ink: r4,               /* palette pick */
+      ink2: hash(x,y,S.seed),/* tier pick */
+      ph: r2*Math.PI*2       /* anim phase */
+    });
+  }
+}
+
+/* ---- glyph drawing ---- */
+function drawGlyph(c,x,y,s,type,ink,lineW,holeCol){
+  c.strokeStyle=ink; c.fillStyle=ink; c.lineWidth=lineW;
+  switch(type){
+    case 'ring': c.beginPath(); c.arc(x,y,s*0.46,0,7); c.stroke(); break;
+    case 'dot':  c.beginPath(); c.arc(x,y,s*0.46,0,7); c.fill(); break;
+    case 'sqring': c.strokeRect(x-s*0.44,y-s*0.44,s*0.88,s*0.88); break;
+    case 'chip': c.fillRect(x-s*0.46,y-s*0.46,s*0.92,s*0.92);
+      c.fillStyle=holeCol||'#fff';
+      c.fillRect(x-s*0.2,y-s*0.2,s*0.4,s*0.4); break;
+    case 'plus': c.beginPath(); c.moveTo(x-s*0.46,y); c.lineTo(x+s*0.46,y);
+      c.moveTo(x,y-s*0.46); c.lineTo(x,y+s*0.46); c.stroke(); break;
+    case 'star': c.beginPath();
+      for(let k=0;k<4;k++){const a=k*Math.PI/4;
+        c.moveTo(x-Math.cos(a)*s*0.5,y-Math.sin(a)*s*0.5);
+        c.lineTo(x+Math.cos(a)*s*0.5,y+Math.sin(a)*s*0.5);}
+      c.stroke(); break;
+  }
+}
+
+function frame(now){
+  const P=PALETTES[S.pal];
+  ctx.fillStyle=P.bg; ctx.fillRect(0,0,W,H);
+  const tt=S.anim? now*0.001*(S.spd/40):0;
+  const cell=S.den;
+  const maxS=cell*(S.maxs/10);
+  const lineW=Math.max(1,cell*0.14);
+
+  for(const c of cells){
+    let x=c.px, y=c.py;
+    /* mouse repulsion */
+    const dx=x-mouse.x, dy=y-mouse.y, d2=dx*dx+dy*dy;
+    if(d2<16900){const d=Math.sqrt(d2)||1,f=(130-d)/130*cell*2.2;x+=dx/d*f;y+=dy/d*f;}
+    /* breathing size + slight drift */
+    const pulse = S.anim? 0.78+0.3*Math.sin(tt*2+c.ph + (x+y)*0.004) : 0.9;
+    let s = Math.max(0.6, maxS * Math.pow(c.cov,0.85) * pulse);
+    let type=c.type;
+    /* size tiers: rare oversized solid dots, like the source pieces */
+    const big = c.ink2>0.93 && c.cov>0.5;
+    if(big){ s*=1.9; type='dot'; }
+    else if(c.ink2>0.72){ s*=0.62; }   /* fine grain */
+    const inks=P.inks;
+    const ink = inks[(c.ink*inks.length)|0];
+    drawGlyph(ctx,x,y,s,type,ink,lineW*Math.min(1.6,Math.max(0.6,s/cell)),P.bg);
+  }
+
+  if(S.poster) drawFrame(P, now);
+  if(S.anim){ S.t=now; requestAnimationFrame(frame); }
+}
+
+function tinyText(c,txt,x,y,color,align){
+  c.fillStyle=color; c.font='9px "Courier New",monospace';
+  c.textAlign=align||'left'; c.textBaseline='middle';
+  c.fillText(txt,x,y);
+}
+
+function drawFrame(P, now){
+  const pad=Math.min(W,H)*0.055, stripH=26;
+  const frameCol=P.strip;
+  /* strips */
+  ctx.fillStyle=frameCol;
+  ctx.fillRect(0,0,W,stripH); ctx.fillRect(0,H-stripH,W,stripH);
+  const msgs1=['array machine','just some more','reading?','still?','wow this text is just a line'];
+  const msgs2=['a generative poster toy','after @a2can3','seed '+S.seed,'shapes: '+cells.length,'you can just do things'];
+  msgs1.forEach((m,i)=>tinyText(ctx,m, 24+i*(W-48)/4, stripH/2, P.bg==='#f2f2f0'||P.bg==='#e8e6e3'||P.bg==='#ffeef8'?'#e8e6e3':P.bg, i? 'center':'left'));
+  msgs2.forEach((m,i)=>tinyText(ctx,m, 24+i*(W-48)/4, H-stripH/2, P.bg==='#f2f2f0'||P.bg==='#e8e6e3'||P.bg==='#ffeef8'?'#e8e6e3':P.bg, i? 'center':'left'));
+  /* bottom band: primary ink, giant clipped paper letters */
+  const bandH=H*0.17, bandY=H-stripH-bandH;
+  ctx.fillStyle=P.inks[0]; ctx.fillRect(pad,bandY,W-pad*2,bandH);
+  ctx.save();
+  ctx.beginPath(); ctx.rect(pad,bandY,W*0.52,bandH); ctx.clip();
+  ctx.fillStyle=P.bg;
+  ctx.font=`900 ${bandH*1.6}px "Arial Black",Arial,sans-serif`;
+  ctx.textAlign='left'; ctx.textBaseline='alphabetic';
+  ctx.fillText((S.src==='text'?S.text:'ARRAY').slice(0,3).toUpperCase(), pad+bandH*0.06, bandY+bandH*1.22);
+  ctx.restore();
+  /* accent asterisk panel overlapping the band's right end */
+  const pw=Math.min(W*0.3,280), ph=bandH*1.5, px0=W-pad-pw, py0=bandY-ph*0.42;
+  ctx.fillStyle=P.accent; ctx.fillRect(px0,py0,pw,ph);
+  const gc=7, gr=4, gw=pw/gc, gh=ph/gr;
+  for(let r=0;r<gr;r++)for(let cc=0;cc<gc;cc++){
+    const x=px0+cc*gw+gw/2, y=py0+r*gh+gh/2, s=Math.min(gw,gh)*0.66;
+    const col=(r+cc)%2? P.bg : '#111';
+    drawGlyph(ctx,x,y,s,(r*gc+cc)%3?'star':'plus',col,Math.max(1,s*0.16),P.accent);
+  }
+  /* left edge accent tab */
+  ctx.fillStyle=P.accent; ctx.fillRect(pad,H*0.42,pad*0.5,H*0.1);
+}
+
+/* ---------- UI wiring ---------- */
+const $=id=>document.getElementById(id);
+function bindGroup(el, attr, fn){
+  el.addEventListener('click',e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    [...el.children].forEach(x=>x.classList.remove('on'));
+    b.classList.add('on'); fn(b.dataset[attr]);
+  });
+}
+bindGroup($('srcBtns'),'src',v=>{
+  S.src=v;
+  $('srcText').style.display=v==='text'?'':'none';
+  $('emojiBtns').style.display=v==='emoji'?'flex':'none';
+  $('imgRow').style.display=v==='image'?'flex':'none';
+  rebuild();
+});
+bindGroup($('emojiBtns'),'e',v=>{S.emoji=v; rebuild();});
+bindGroup($('palBtns'),'p',v=>{S.pal=v; if(!S.anim)frame(performance.now());});
+$('srcText').addEventListener('input',e=>{S.text=e.target.value.toUpperCase(); rebuild();});
+$('shapeBtns').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b)return;
+  const s=b.dataset.s;
+  if(S.shapes.has(s)&&S.shapes.size>1){S.shapes.delete(s);b.classList.remove('on');}
+  else{S.shapes.add(s);b.classList.add('on');}
+  rebuild();
+});
+$('file').addEventListener('change',e=>{
+  const f=e.target.files[0]; if(!f)return;
+  const im=new Image(); im.onload=()=>{S.img=im; rebuild();}; im.src=URL.createObjectURL(f);
+});
+[['den','vDen',v=>S.den=v],['maxs','vMax',v=>S.maxs=v],['jit','vJit',v=>S.jit=v],['spd','vSpd',v=>S.spd=v]]
+.forEach(([id,vid,set])=>{
+  $(id).addEventListener('input',e=>{const v=+e.target.value; $(vid).textContent=id==='maxs'?(v/10).toFixed(1):v; set(v); rebuild();});
+});
+$('reseed').onclick=()=>{S.seed=(Math.random()*1e9)|0; rebuild();};
+$('posterBtn').onclick=e=>{S.poster=!S.poster; e.target.classList.toggle('on',S.poster);
+  e.target.textContent=S.poster?'POSTER FRAME ON':'POSTER FRAME OFF'; rebuild();};
+$('animBtn').onclick=e=>{S.anim=!S.anim; e.target.classList.toggle('on',S.anim);
+  if(S.anim) requestAnimationFrame(frame); else frame(performance.now());};
+$('save').onclick=savePNG;
+
+function savePNG(){
+  frame(performance.now());
+  const a=document.createElement('a');
+  a.download=`array-machine-${S.seed}.png`;
+  a.href=cv.toDataURL('image/png');
+  a.click();
+  const t=$('toast'); t.style.opacity=1; setTimeout(()=>t.style.opacity=0,900);
+}
+
+stage.addEventListener('pointermove',e=>{
+  const r=stage.getBoundingClientRect(); mouse.x=e.clientX-r.left; mouse.y=e.clientY-r.top;
+});
+stage.addEventListener('pointerleave',()=>{mouse.x=-9e4;mouse.y=-9e4;});
+cv.addEventListener('click',()=>{S.seed=(Math.random()*1e9)|0; rebuild();});
+addEventListener('keydown',e=>{
+  if(e.target.tagName==='INPUT')return;
+  const k=e.key.toLowerCase();
+  if(k==='r'){S.seed=(Math.random()*1e9)|0; rebuild();}
+  if(k==='s')savePNG();
+  if(k==='p')$('posterBtn').click();
+  const pals=['jorge','amber','toxic','mono','candy'];
+  if(k>='1'&&k<='5'){
+    S.pal=pals[+k-1];
+    [...$('palBtns').children].forEach(b=>b.classList.toggle('on',b.dataset.p===S.pal));
+    if(!S.anim)frame(performance.now());
+  }
+});
+
+addEventListener('resize',resize);
+/* boot */
+resize();
+S.text=$('srcText').value;
+rebuild();
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>
